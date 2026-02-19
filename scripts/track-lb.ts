@@ -10,11 +10,51 @@ const HISTORY_LIMIT = 10;
 
 // Configuration: Control which blocks are logged based on the vote.
 // Options: "ALL", "ON_OFF", "OFF_ONLY"
-const DISPLAY_MODE: "ALL" | "ON_OFF" | "OFF_ONLY" = "ON_OFF" as "ALL" | "ON_OFF" | "OFF_ONLY";
+const DISPLAY_MODE: "ALL" | "ON_OFF" | "OFF_ONLY" = "ALL" as "ALL" | "ON_OFF" | "OFF_ONLY";
 
-// Configuration: Log all "OFF" votes to a JSON file?
 const EXPORT_OFF_VOTES = true;
-const LOG_FILE = "off_votes.json";
+const LOG_FILE = "off_votes.jsonl";
+const LEGACY_LOG_FILE = "off_votes.json";
+
+const fs = require('fs');
+let lastLoggedLevel = -1;
+
+// Load existing logs on startup to initialize state
+if (EXPORT_OFF_VOTES) {
+    try {
+        // Migration: If legacy JSON file exists and new JSONL doesn't
+        if (fs.existsSync(LEGACY_LOG_FILE) && !fs.existsSync(LOG_FILE)) {
+             try {
+                 const content = fs.readFileSync(LEGACY_LOG_FILE, 'utf8');
+                 if (content.trim()) {
+                     const json = JSON.parse(content);
+                     const jsonl = json.map((entry: any) => JSON.stringify(entry)).join('\n') + '\n';
+                     fs.writeFileSync(LOG_FILE, jsonl);
+                     // console.log("Migrated legacy log file to JSONL format.");
+                 }
+             } catch (e) {
+                 console.error("Error migrating legacy log file:", e);
+             }
+        }
+
+        if (fs.existsSync(LOG_FILE)) {
+            const content = fs.readFileSync(LOG_FILE, 'utf8');
+            const lines = content.trim().split('\n');
+            if (lines.length > 0) {
+                 // Get last non-empty line
+                 const lastLine = lines[lines.length - 1];
+                 try {
+                    const lastEntry = JSON.parse(lastLine);
+                    lastLoggedLevel = lastEntry.level;
+                 } catch (e) { 
+                     // subtle error logging if needed
+                 }
+            }
+        }
+    } catch (e) {
+        console.error("Error loading log file:", e);
+    }
+}
 
 const socket = new WebSocket(WS_URL);
 
@@ -173,26 +213,18 @@ socket.onmessage = (event) => {
                 // Log OFF votes to file if enabled
                 if (EXPORT_OFF_VOTES && vote === "OFF") {
                     try {
-                        const fs = require('fs');
-                        let logs: any[] = [];
-                        if (fs.existsSync(LOG_FILE)) {
-                             const content = fs.readFileSync(LOG_FILE, 'utf8');
-                             if (content.trim()) {
-                                 logs = JSON.parse(content);
-                             }
-                        }
-                        
-                        // Check if block is already logged to avoid duplicates
-                        const exists = logs.some((l: any) => l.level === level);
-                        if (!exists) {
-                            logs.push({
+                        // Check if block is already logged (using in-memory tracker)
+                        if (level > lastLoggedLevel) {
+                            const entry = {
                                 level,
                                 vote,
                                 baker: bakerName,
                                 ema,
                                 timestamp: new Date().toISOString()
-                            });
-                            fs.writeFileSync(LOG_FILE, JSON.stringify(logs, null, 2));
+                            };
+                            
+                            fs.appendFileSync(LOG_FILE, JSON.stringify(entry) + "\n");
+                            lastLoggedLevel = level;
                         }
                     } catch (err) {
                         // silently fail to maintain TUI

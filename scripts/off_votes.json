@@ -5,5 +5,19 @@
     "baker": "Baktz",
     "ema": 119628766,
     "timestamp": "2026-02-19T08:07:08.581Z"
+  },
+  {
+    "level": 12003389,
+    "vote": "OFF",
+    "baker": "XTZMaster",
+    "ema": 119260588,
+    "timestamp": "2026-02-19T08:12:45.647Z"
+  },
+  {
+    "level": 12003398,
+    "vote": "OFF",
+    "baker": "EcoTez",
+    "ema": 120200958,
+    "timestamp": "2026-02-19T08:13:38.533Z"
   }
 ]
