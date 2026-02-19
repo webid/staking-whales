@@ -20,7 +20,7 @@ interface Producer {
 interface Block {
     level: number;
     producer: Producer;
-    lbToggle: boolean;
+    lbToggle: boolean | null;
     timestamp: string;
 }
 
@@ -70,11 +70,20 @@ async function main() {
         }
         console.log(""); // New line after progress
         
-        // Filter for blocks that have an explicit vote (true or false)
-        // Some blocks might not have lbToggle set if it's null/undefined, though API usually returns it.
-        const votedBlocks = blocks.filter((b) => b.lbToggle !== null && b.lbToggle !== undefined);
-        
-        console.log(`Found ${votedBlocks.length} blocks with 'lbToggle' votes in the last ${N} blocks.`);
+        // Calculate Global Metrics
+        const totalBlocks = blocks.length;
+        const totalOff = blocks.filter(b => b.lbToggle === false).length;
+        const totalOn = blocks.filter(b => b.lbToggle === true).length;
+        const totalPass = totalBlocks - totalOff - totalOn;
+
+        const offPct = ((totalOff / totalBlocks) * 100).toFixed(2);
+        const onPct = ((totalOn / totalBlocks) * 100).toFixed(2);
+        const passPct = ((totalPass / totalBlocks) * 100).toFixed(2);
+
+        console.log(`\nGlobal Metrics (Last ${totalBlocks} blocks):`);
+        console.log(`OFF:  ${totalOff.toString().padEnd(6)} (${offPct}%)`);
+        console.log(`ON:   ${totalOn.toString().padEnd(6)} (${onPct}%)`);
+        console.log(`PASS: ${totalPass.toString().padEnd(6)} (${passPct}%)`);
 
         // Aggregage unique bakers
         const bakerMap = new Map<string, {
@@ -82,25 +91,29 @@ async function main() {
             address: string;
             offCount: number;
             onCount: number;
+            passCount: number;
             total: number;
             lastLevel: number;
-            lastVote?: "ON" | "OFF";
+            lastVote?: "ON" | "OFF" | "PASS";
             lastVoteDate?: string;
         }>();
 
-        votedBlocks.forEach((b) => {
+        blocks.forEach((b) => {
             const baker = b.producer;
             if (baker && baker.address) {
+                const currentVote = (b.lbToggle === true) ? "ON" : (b.lbToggle === false) ? "OFF" : "PASS";
+
                 if (!bakerMap.has(baker.address)) {
                     bakerMap.set(baker.address, {
                         alias: baker.alias,
                         address: baker.address,
                         offCount: 0,
                         onCount: 0,
+                        passCount: 0,
                         total: 0,
                         lastLevel: b.level,
                         // Since we iterate newest -> oldest (desc sort), the first time we see a baker is their latest vote
-                        lastVote: b.lbToggle ? "ON" : "OFF",
+                        lastVote: currentVote,
                         lastVoteDate: b.timestamp
                     });
                 }
@@ -110,6 +123,8 @@ async function main() {
                     entry.onCount++;
                 } else if (b.lbToggle === false) {
                     entry.offCount++;
+                } else {
+                    entry.passCount++;
                 }
                 entry.total++;
 
@@ -117,14 +132,14 @@ async function main() {
                 if (b.level > entry.lastLevel) {
                     entry.lastLevel = b.level;
                     // In case blocks weren't sorted perfectly, update lastVote
-                    entry.lastVote = b.lbToggle ? "ON" : "OFF";
+                    entry.lastVote = currentVote;
                     entry.lastVoteDate = b.timestamp;
                 }
             }
         });
 
         if (bakerMap.size === 0) {
-            console.log("No bakers found voting on LB toggle.");
+            console.log("No bakers found.");
             return;
         }
 
@@ -176,8 +191,22 @@ async function main() {
                  console.log(`${b.offCount.toString().padEnd(5)} | ${b.onCount.toString().padEnd(5)} | ${b.total.toString().padEnd(5)} | ${lastVote.padEnd(9)} | ${dateCmd.padEnd(10)} | ${name}`);
             });
             console.log("───────────────────────────────────────────────────────────────────────────────────────────");
-        } else {
-             console.log("\nNo bakers found with mixed votes in this period.");
+        }
+
+        // CHANGING FROM/TO PASS (Pass + Vote)
+        const passBakers = bakers.filter(b => b.passCount > 0 && (b.onCount > 0 || b.offCount > 0)).sort((a, b) => b.total - a.total);
+        if (passBakers.length > 0) {
+            console.log("\n🔄 Bakers changing from/to PASS:");
+            console.log("──────────────────────────────────────────────────────────────────────────────────────────────────");
+            console.log("OFF   | ON    | PASS  | Total | Last Vote | Date       | Baker Name (Address)");
+            console.log("──────────────────────────────────────────────────────────────────────────────────────────────────");
+            passBakers.forEach(b => {
+                 const name = b.alias ? `${b.alias} (${b.address})` : b.address;
+                 const lastVote = b.lastVote || "?";
+                 const dateCmd = b.lastVoteDate ? b.lastVoteDate.split('T')[0] : "N/A";
+                 console.log(`${b.offCount.toString().padEnd(5)} | ${b.onCount.toString().padEnd(5)} | ${b.passCount.toString().padEnd(5)} | ${b.total.toString().padEnd(5)} | ${lastVote.padEnd(9)} | ${dateCmd.padEnd(10)} | ${name}`);
+            });
+            console.log("──────────────────────────────────────────────────────────────────────────────────────────────────");
         }
 
     } catch (error: any) {
