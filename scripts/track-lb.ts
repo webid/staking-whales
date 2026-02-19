@@ -70,10 +70,7 @@ function renderDashboard() {
     // Print history (newest first)
     // History is stored oldest -> newest. We reverse for display.
     [...blockHistory].reverse().forEach(b => {
-        // Filter history based on DISPLAY_MODE? 
-        // User asked for output control. The logic in onmessage filters what goes INTO state.
-        // So here we just display what's in history.
-        
+                
         let vColorOutput = "\x1b[37m"; // White default
         if (b.vote === "ON") vColorOutput = "\x1b[32m"; // Green
         if (b.vote === "OFF") vColorOutput = "\x1b[31m"; // Red
@@ -139,24 +136,12 @@ socket.onmessage = (event) => {
                 }
                 vote = vote.toUpperCase();
 
-                // Filter INPUT based on DISPLAY_MODE
-                // If we filter here, the block won't appear in history or update the dashboard.
-                // This seems correct based on "show only Off votes".
-                // HOWEVER, EMA updates on every block regardless of vote.
-                // If we skip the update, the EMA won't update on screen until a matching vote comes in.
-                // Is this desired?
-                // Probably better to ALWAYS update current stats, but only add to History list if it matches filter?
-                // "show only Off votes" -> usually implies I only care about that activity.
-                // But let's assume if I filter OFF_ONLY, I shouldn't see PASS blocks cluttering my view.
                 
                 const shouldTrack = 
                     DISPLAY_MODE == "ALL" ||
                     (DISPLAY_MODE == "ON_OFF" && (vote === "ON" || vote === "OFF")) ||
                     (DISPLAY_MODE == "OFF_ONLY" && vote === "OFF");
 
-                // If we shouldn't track this block visually, we might still want to update the "Current EMA" if we wanted to be super precise,
-                // but simpler to just ignore it effectively, OR we update stats but don't add to list.
-                // Let's update stats ALWAYS so the top bar is live, but filter the history list.
 
                 const baker = block.proposer;
                 const bakerName = baker.alias || baker.address;
