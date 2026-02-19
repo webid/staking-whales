@@ -38,7 +38,7 @@
         progress = `Fetching records... (Current count: ${allAccounts.length})`;
         
         const response = await fetch(
-          `${TZKT_API}?balance.ge=${balanceMutez}&delegate.active=true&limit=${limit}&offset=${offset}`
+          `${TZKT_API}?balance.ge=${balanceMutez}&limit=${limit}&offset=${offset}`
         );
 
         if (!response.ok) {
