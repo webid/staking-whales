@@ -153,10 +153,13 @@ async function exportToJsonl(tokenName: string, holders: HolderItem[]) {
 }
 
 async function main() {
+  const uniqueHolders = new Set<string>();
+
   for (const token of TOKENS) {
     console.log(`\n--- Processing ${token.name} ---`);
     const holders = await fetchAllHolders(token.address);
     if (holders.length > 0) {
+      holders.forEach((h) => uniqueHolders.add(h.address.hash));
       calculateAndPrintMetrics(token.name, holders);
       await exportToCsv(token.name, holders);
       await exportToJsonl(token.name, holders);
@@ -164,6 +167,15 @@ async function main() {
       console.log(`No holders found for ${token.name}.`);
     }
   }
+
+  console.log(`\n--- Combined Metrics ---`);
+  console.log(`Total Unique Holders (holding at least one token): ${uniqueHolders.size}`);
+
+  const combinedFileName = 'combined_unique_holders.csv';
+  const header = 'address\n';
+  const csvContent = header + Array.from(uniqueHolders).join('\n');
+  await fs.writeFile(combinedFileName, csvContent, 'utf-8');
+  console.log(`Exported Combined Unique Holders list to ${combinedFileName}`);
 }
 
 main().catch((error) => {
