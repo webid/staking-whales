@@ -72,6 +72,29 @@ async function main() {
         
         // Calculate Global Metrics
         const totalBlocks = blocks.length;
+
+        let timeIntervalStr = "";
+        if (totalBlocks > 1) {
+            const oldestTime = new Date(blocks[totalBlocks - 1].timestamp).getTime();
+            const newestTime = new Date(blocks[0].timestamp).getTime();
+            const diffMs = Math.abs(newestTime - oldestTime);
+            
+            const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((diffMs / (1000 * 60 * 60)) % 24);
+            const minutes = Math.floor((diffMs / 1000 / 60) % 60);
+            
+            const timeParts = [];
+            if (days > 0) timeParts.push(`${days}d`);
+            if (hours > 0) timeParts.push(`${hours}h`);
+            if (minutes > 0) timeParts.push(`${minutes}m`);
+            
+            if (timeParts.length > 0) {
+                timeIntervalStr = ` over ~${timeParts.join(' ')}`;
+            } else {
+                timeIntervalStr = ` over < 1m`;
+            }
+        }
+
         const totalOff = blocks.filter(b => b.lbToggle === false).length;
         const totalOn = blocks.filter(b => b.lbToggle === true).length;
         const totalPass = totalBlocks - totalOff - totalOn;
@@ -80,7 +103,7 @@ async function main() {
         const onPct = ((totalOn / totalBlocks) * 100).toFixed(2);
         const passPct = ((totalPass / totalBlocks) * 100).toFixed(2);
 
-        console.log(`\nGlobal Metrics (Last ${totalBlocks} blocks):`);
+        console.log(`\nGlobal Metrics (Last ${totalBlocks} blocks${timeIntervalStr}):`);
         console.log(`OFF:  ${totalOff.toString().padEnd(6)} (${offPct}%)`);
         console.log(`ON:   ${totalOn.toString().padEnd(6)} (${onPct}%)`);
         console.log(`PASS: ${totalPass.toString().padEnd(6)} (${passPct}%)`);
